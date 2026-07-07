@@ -1,0 +1,8 @@
+[
+  {
+    "case_id": "lapsed_policy_denied",
+    "response": "**Triage Report**\n\n**Claim Summary:**\n*   **Claimant Name:** Robert Diaz\n*   **Policy Number:** POL-1003\n*   **Incident Description:** a car accident\n*   **Claim Amount:** 5000.0\n\n**Risk Level:**\n*   **Risk Level:** medium\n*   **Risk Reasoning:** The incident description is extremely vague ('a car accident'), lacking specific details to properly assess the situation.\n\n**Coverage Decision:**\n*   **Decision:** denied\n*   **Reason:** Policy status is 'lapsed', not active.\n\n**Recommended Next Action:**\nInform claimant of coverage denial due to lapsed policy status.",
+    "score": 5,
+    "explanation": "The agent's response accurately identifies that the claim should be denied due to the policy being lapsed, which perfectly aligns with the expected answer. The response is also well-structured, clear, and provides relevant additional details like a risk assessment and recommended next action, enhancing its value without introducing inaccuracies."
+  }
+]
