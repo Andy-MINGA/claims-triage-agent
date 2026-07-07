@@ -48,6 +48,29 @@ def security_screen(ctx: Context, node_input: Any):
 
     yield Event(data=text, state={"screened_text": text, "security_flagged": flagged})
 
+@node
+def security_gate(ctx: Context, node_input: Any):
+    """Hard-enforced routing gate: deterministically halts processing for flagged claims,
+    instead of relying on the LLM to notice and respect the security flag on its own."""
+    flagged = ctx.state.get("security_flagged", False)
+    if flagged:
+        halt_report = (
+            "**Triage Report**\n\n"
+            "**SECURITY ALERT: This claim was automatically halted before processing.**\n\n"
+            "Reason: The submitted claim text contained a possible prompt-injection attempt "
+            "(e.g., instructions trying to force auto-approval or bypass review rules).\n\n"
+            "**Recommended Next Action:** Route to a human security reviewer immediately. "
+            "Do not process this claim automatically."
+        )
+        yield Event(data=halt_report, route="halted")
+    else:
+        yield Event(data=node_input, route="continue")
+
+@node
+def halted_output(ctx: Context, node_input: Any):
+    """Terminal node for halted claims — surfaces the security alert as the final output."""
+    yield Event(data=node_input, output=node_input)
+
 
 # ---------- Node 2: Intake Agent ----------
 intake_agent = LlmAgent(
@@ -176,11 +199,12 @@ root_agent = Workflow(
     name="claims_triage_workflow",
     edges=[
         Edge(from_node=START, to_node=security_screen),
-        Edge(from_node=security_screen, to_node=intake_agent),
+        Edge(from_node=security_screen, to_node=security_gate),
+        Edge(from_node=security_gate, to_node=intake_agent, route="continue"),
+        Edge(from_node=security_gate, to_node=halted_output, route="halted"),
         Edge(from_node=intake_agent, to_node=risk_agent),
         Edge(from_node=risk_agent, to_node=coverage_checker),
         Edge(from_node=coverage_checker, to_node=report_agent),
     ],
 )
-
 app = App(name="claims_triage_agent", root_agent=root_agent)
