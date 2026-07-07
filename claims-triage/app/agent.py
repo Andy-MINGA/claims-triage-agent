@@ -52,7 +52,7 @@ def security_screen(ctx: Context, node_input: Any):
 # ---------- Node 2: Intake Agent ----------
 intake_agent = LlmAgent(
     name="intake_agent",
-    model="gemini-flash-latest",
+    model="gemini-2.5-flash",
     instruction=(
         "You are an insurance intake specialist. Extract structured claim details from the "
         "provided claim text. Be precise about the policy number format (e.g. POL-1001). If the "
@@ -67,7 +67,7 @@ intake_agent = LlmAgent(
 # ---------- Node 3: Risk Assessment Agent ----------
 risk_agent = LlmAgent(
     name="risk_assessment_agent",
-    model="gemini-flash-latest",
+    model="gemini-2.5-flash",
     instruction=(
         "You are a risk assessment specialist. Given the extracted claim data, assess risk level "
         "(low, medium, high) based on claim amount and incident description. Flag unusual amounts, "
@@ -85,9 +85,32 @@ def coverage_checker(ctx: Context, node_input: Any):
     claim = ctx.state.get("claim_data", {})
     policy_number = claim.get("policy_number", "")
 
-    db = sqlite3.connect("../mcp_server/policies.db")
-    cursor = db.execute("SELECT * FROM policies WHERE policy_number = ?", (policy_number,))
-    row = cursor.fetchone()
+    if not policy_number:
+        coverage_result = {
+            "found": False,
+            "decision": "cannot_verify",
+            "reason": "No policy number was extracted from the claim. Route to human review.",
+        }
+        yield Event(data=coverage_result, state={"coverage_result": coverage_result})
+        return
+
+    try:
+        db = sqlite3.connect("../mcp_server/policies.db")
+        cursor = db.execute("SELECT * FROM policies WHERE policy_number = ?", (policy_number,))
+        row = cursor.fetchone()
+    except sqlite3.Error as e:
+        coverage_result = {
+            "found": False,
+            "decision": "cannot_verify",
+            "reason": f"Policy database error: {str(e)}. Route to human review.",
+        }
+        yield Event(data=coverage_result, state={"coverage_result": coverage_result})
+        return
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
     if row is None:
         coverage_result = {
@@ -96,28 +119,35 @@ def coverage_checker(ctx: Context, node_input: Any):
             "reason": f"No policy found matching {policy_number}",
         }
     else:
-        columns = [desc[0] for desc in cursor.description]
-        policy = dict(zip(columns, row))
-        exclusions = policy.get("exclusions", "").lower()
-        description = claim.get("incident_description", "").lower()
-        excluded_hit = any(
-            term.strip() in description for term in exclusions.split(",") if term.strip()
-        )
+        try:
+            columns = [desc[0] for desc in cursor.description]
+            policy = dict(zip(columns, row))
+            exclusions = policy.get("exclusions", "").lower()
+            description = claim.get("incident_description", "").lower()
+            excluded_hit = any(
+                term.strip() in description for term in exclusions.split(",") if term.strip()
+            )
 
-        if policy["status"] != "active":
-            decision = "denied"
-            reason = f"Policy status is '{policy['status']}', not active."
-        elif excluded_hit:
-            decision = "denied"
-            reason = f"Incident matches an exclusion: {policy['exclusions']}"
-        elif claim.get("claim_amount", 0) > policy["coverage_limit"]:
-            decision = "partial"
-            reason = f"Claim amount exceeds coverage limit of ${policy['coverage_limit']}"
-        else:
-            decision = "covered"
-            reason = "Claim falls within policy coverage and no exclusions apply."
+            if policy["status"] != "active":
+                decision = "denied"
+                reason = f"Policy status is '{policy['status']}', not active."
+            elif excluded_hit:
+                decision = "denied"
+                reason = f"Incident matches an exclusion: {policy['exclusions']}"
+            elif claim.get("claim_amount", 0) > policy["coverage_limit"]:
+                decision = "partial"
+                reason = f"Claim amount exceeds coverage limit of ${policy['coverage_limit']}"
+            else:
+                decision = "covered"
+                reason = "Claim falls within policy coverage and no exclusions apply."
 
-        coverage_result = {"found": True, "policy": policy, "decision": decision, "reason": reason}
+            coverage_result = {"found": True, "policy": policy, "decision": decision, "reason": reason}
+        except (KeyError, TypeError) as e:
+            coverage_result = {
+                "found": True,
+                "decision": "cannot_verify",
+                "reason": f"Policy record was malformed ({str(e)}). Route to human review.",
+            }
 
     yield Event(data=coverage_result, state={"coverage_result": coverage_result})
 
@@ -125,7 +155,7 @@ def coverage_checker(ctx: Context, node_input: Any):
 # ---------- Node 5: Report Generator Agent ----------
 report_agent = LlmAgent(
     name="report_generator_agent",
-    model="gemini-flash-latest",
+    model="gemini-2.5-flash",
     instruction=(
         "You are a claims report writer. Using the claim data, risk assessment, and coverage "
         "check result available in state, write a clear structured triage report: claim summary, "
