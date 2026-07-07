@@ -157,13 +157,20 @@ report_agent = LlmAgent(
     name="report_generator_agent",
     model="gemini-2.5-flash",
     instruction=(
-        "You are a claims report writer. Using the claim data, risk assessment, and coverage "
-        "check result available in state, write a clear structured triage report: claim summary, "
-        "risk level with reasoning, coverage decision with reasoning, and a recommended next action."
+        "You are a claims report writer. Write a clear structured triage report using ONLY "
+        "the exact data provided below. Do NOT invent, guess, or fabricate any claim ID, date, "
+        "name, or number not present in this data. If a value is missing, write 'Not available' "
+        "for that field.\n\n"
+        "CLAIM DATA:\n{claim_data}\n\n"
+        "RISK ASSESSMENT:\n{risk_assessment}\n\n"
+        "COVERAGE CHECK RESULT:\n{coverage_result}\n\n"
+        "Using ONLY the data above, write the report with these sections: claim summary "
+        "(claimant name, policy number, incident description, claim amount), risk level with "
+        "reasoning, coverage decision with reasoning, and a recommended next action.\n"
+        "The policyholder name (from COVERAGE CHECK RESULT) and the claimant name (from CLAIM "
+        "DATA) may differ — do not merge or confuse them."
     ),
 )
-
-
 # ---------- Workflow ----------
 root_agent = Workflow(
     name="claims_triage_workflow",
