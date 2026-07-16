@@ -1,11 +1,15 @@
-# mcp_server.py — Exposes the insurance policy database via MCP
-import sqlite3
+# mcp_server.py — Exposes the insurance policy database via MCP (Firestore-backed)
+import firebase_admin
+from firebase_admin import credentials, firestore
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
+cred = credentials.Certificate("firebase-service-account.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
 server = Server("policy-knowledge-base")
-db = sqlite3.connect("policies.db", check_same_thread=False)
 
 
 @server.list_tools()
@@ -40,21 +44,14 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "get_policy":
         policy_number = arguments["policy_number"]
-        cursor = db.execute(
-            "SELECT * FROM policies WHERE policy_number = ?", (policy_number,)
-        )
-        row = cursor.fetchone()
-        if row is None:
+        doc = db.collection("policies").document(policy_number).get()
+        if not doc.exists:
             return [TextContent(type="text", text=f"No policy found for {policy_number}")]
-        columns = [desc[0] for desc in cursor.description]
-        result = dict(zip(columns, row))
-        return [TextContent(type="text", text=str(result))]
+        return [TextContent(type="text", text=str(doc.to_dict()))]
 
     elif name == "list_policies":
-        cursor = db.execute("SELECT * FROM policies")
-        rows = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description]
-        result = [dict(zip(columns, row)) for row in rows]
+        docs = db.collection("policies").stream()
+        result = [doc.to_dict() for doc in docs]
         return [TextContent(type="text", text=str(result))]
 
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
