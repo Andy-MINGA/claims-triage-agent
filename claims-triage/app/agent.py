@@ -1,7 +1,9 @@
 from __future__ import annotations
 import re
-import sqlite3
 from typing import Any, Literal
+
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.context import Context
@@ -24,6 +26,12 @@ class RiskAssessment(BaseModel):
         description="Overall risk level of this claim"
     )
     risk_reasoning: str = Field(description="Short explanation for the assigned risk level")
+
+# ---------- Firestore Setup ----------
+if not firebase_admin._apps:
+    cred = credentials.Certificate("../mcp_server/firebase-service-account.json")
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 
 # ---------- Node 1: Security Screen (function node, runs BEFORE any LLM) ----------
@@ -104,7 +112,7 @@ risk_agent = LlmAgent(
 # ---------- Node 4: Coverage Checker (function node, queries policy DB) ----------
 @node
 def coverage_checker(ctx: Context, node_input: Any):
-    """Checks the claim's policy_number against the policy knowledge base."""
+    """Checks the claim's policy_number against the policy knowledge base (Firestore)."""
     claim = ctx.state.get("claim_data", {})
     policy_number = claim.get("policy_number", "")
 
@@ -118,10 +126,8 @@ def coverage_checker(ctx: Context, node_input: Any):
         return
 
     try:
-        db = sqlite3.connect("../mcp_server/policies.db")
-        cursor = db.execute("SELECT * FROM policies WHERE policy_number = ?", (policy_number,))
-        row = cursor.fetchone()
-    except sqlite3.Error as e:
+        doc = db.collection("policies").document(policy_number).get()
+    except Exception as e:
         coverage_result = {
             "found": False,
             "decision": "cannot_verify",
@@ -129,13 +135,8 @@ def coverage_checker(ctx: Context, node_input: Any):
         }
         yield Event(data=coverage_result, state={"coverage_result": coverage_result})
         return
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
 
-    if row is None:
+    if not doc.exists:
         coverage_result = {
             "found": False,
             "decision": "cannot_verify",
@@ -143,8 +144,7 @@ def coverage_checker(ctx: Context, node_input: Any):
         }
     else:
         try:
-            columns = [desc[0] for desc in cursor.description]
-            policy = dict(zip(columns, row))
+            policy = doc.to_dict()
             exclusions = policy.get("exclusions", "").lower()
             description = claim.get("incident_description", "").lower()
             excluded_hit = any(
