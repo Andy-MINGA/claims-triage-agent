@@ -70,15 +70,15 @@ def security_gate(ctx: Context, node_input: Any):
             "**Recommended Next Action:** Route to a human security reviewer immediately. "
             "Do not process this claim automatically."
         )
-        yield Event(data=halt_report, route="halted")
+        yield Event(data=halt_report, state={"final_report": halt_report}, route="halted")
     else:
         yield Event(data=node_input, route="continue")
 
+
 @node
 def halted_output(ctx: Context, node_input: Any):
-    """Terminal node for halted claims — surfaces the security alert as the final output."""
-    yield Event(data=node_input, output=node_input)
-
+    """Terminal node for halted claims — final_report is already set by security_gate."""
+    yield Event(data=ctx.state.get("final_report", "Claim halted for security review."))
 
 # ---------- Node 2: Intake Agent ----------
 intake_agent = LlmAgent(
@@ -179,6 +179,7 @@ def coverage_checker(ctx: Context, node_input: Any):
 report_agent = LlmAgent(
     name="report_generator_agent",
     model="gemini-2.5-flash",
+    output_key="final_report",
     instruction=(
         "You are a claims report writer. Write a clear structured triage report using ONLY "
         "the exact data provided below. Do NOT invent, guess, or fabricate any claim ID, date, "
