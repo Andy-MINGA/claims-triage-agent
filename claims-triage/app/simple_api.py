@@ -46,6 +46,7 @@ FRONTEND_HTML = """
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top: 2px solid transparent; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <h1>Claims Triage Agent</h1>
@@ -74,7 +75,7 @@ async function submitClaim() {
       body: JSON.stringify({ claim_text: text })
     });
     const data = await res.json();
-    reportDiv.textContent = data.final_report;
+    reportDiv.innerHTML = marked.parse(data.final_report);
     reportDiv.className = data.security_flagged ? 'flagged' : '';
   } catch (err) {
     reportDiv.textContent = 'Error: ' + err.message;
