@@ -28,10 +28,21 @@ class RiskAssessment(BaseModel):
     risk_reasoning: str = Field(description="Short explanation for the assigned risk level")
 
 # ---------- Firestore Setup ----------
+import json
+import os
+
 if not firebase_admin._apps:
-    cred = credentials.Certificate("../mcp_server/firebase-service-account.json")
+    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+    if firebase_creds_json:
+        # Production/deployed: credentials injected as an environment variable
+        cred_dict = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(cred_dict)
+    else:
+        # Local development: credentials read from file
+        cred = credentials.Certificate("../mcp_server/firebase-service-account.json")
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+
 
 
 # ---------- Node 1: Security Screen (function node, runs BEFORE any LLM) ----------
