@@ -202,6 +202,13 @@ report_agent = LlmAgent(
         "Using ONLY the data above, write the report with these sections: claim summary "
         "(claimant name, policy number, incident description, claim amount), risk level with "
         "reasoning, coverage decision with reasoning, and a recommended next action.\n"
+	"For the Recommended Next Action, always provide one concrete action derived from "
+	"the coverage decision — do not write 'Not available' for this field. Use this "
+	"mapping: if covered, recommend proceeding with claim processing and payment "
+	"(noting the deductible); if denied, recommend notifying the claimant of the "
+	"denial and the reason; if partial, recommend proceeding for the covered portion "
+	"and notifying the claimant of the difference; if cannot_verify, recommend "
+	"routing to a human adjuster for manual review.\n"
         "The policyholder name (from COVERAGE CHECK RESULT) and the claimant name (from CLAIM "
         "DATA) may differ — do not merge or confuse them."
     ),
