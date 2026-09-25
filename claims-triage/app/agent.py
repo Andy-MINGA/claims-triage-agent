@@ -123,7 +123,8 @@ risk_agent = LlmAgent(
 # ---------- Node 4: Coverage Checker (function node, queries policy DB) ----------
 @node
 def coverage_checker(ctx: Context, node_input: Any):
-    """Checks the claim's policy_number against the policy knowledge base (Firestore)."""
+    """Checks the claim's policy_number against the policy knowledge base (Firestore),
+    and verifies the claimant is the actual policyholder on record."""
     claim = ctx.state.get("claim_data", {})
     policy_number = claim.get("policy_number", "")
 
@@ -156,6 +157,25 @@ def coverage_checker(ctx: Context, node_input: Any):
     else:
         try:
             policy = doc.to_dict()
+
+            claimant_name = claim.get("claimant_name", "").strip().lower()
+            policyholder_name = policy.get("policyholder_name", "").strip().lower()
+
+            if claimant_name and policyholder_name and claimant_name != policyholder_name:
+                coverage_result = {
+                    "found": True,
+                    "policy": policy,
+                    "decision": "identity_mismatch",
+                    "reason": (
+                        f"Claimant name '{claim.get('claimant_name', '')}' does not match "
+                        f"the policyholder on record ('{policy.get('policyholder_name', '')}') "
+                        f"for policy {policy_number}. Route to human review to verify identity "
+                        "before processing."
+                    ),
+                }
+                yield Event(data=coverage_result, state={"coverage_result": coverage_result})
+                return
+
             exclusions = policy.get("exclusions", "").lower()
             description = claim.get("incident_description", "").lower()
             excluded_hit = any(
@@ -203,12 +223,14 @@ report_agent = LlmAgent(
         "(claimant name, policy number, incident description, claim amount), risk level with "
         "reasoning, coverage decision with reasoning, and a recommended next action.\n"
 	"For the Recommended Next Action, always provide one concrete action derived from "
-	"the coverage decision — do not write 'Not available' for this field. Use this "
+	"the coverage decision â€” do not write 'Not available' for this field. Use this "
 	"mapping: if covered, recommend proceeding with claim processing and payment "
 	"(noting the deductible); if denied, recommend notifying the claimant of the "
 	"denial and the reason; if partial, recommend proceeding for the covered portion "
 	"and notifying the claimant of the difference; if cannot_verify, recommend "
-	"routing to a human adjuster for manual review.\n"
+	"routing to a human adjuster for manual review; if identity_mismatch, recommend "
+	"halting the claim and routing to a human adjuster to verify the claimant's "
+	"identity against the policy on file before any further processing.\n"
         "The policyholder name (from COVERAGE CHECK RESULT) and the claimant name (from CLAIM "
         "DATA) may differ — do not merge or confuse them."
     ),

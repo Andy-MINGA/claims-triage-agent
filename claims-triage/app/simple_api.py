@@ -41,6 +41,9 @@ FRONTEND_HTML = """
   textarea { width: 100%; height: 100px; padding: 10px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc; }
   button { margin-top: 10px; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
   button:disabled { background: #93c5fd; cursor: not-allowed; }
+  .example-btn { margin-top: 0; margin-right: 8px; padding: 6px 12px; background: white; color: #2563eb; border: 1px solid #2563eb; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .sample-note { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; }
+  .sample-note code { background: #e0e7ff; padding: 2px 5px; border-radius: 4px; }
   #report { white-space: pre-wrap; background: white; border-radius: 8px; padding: 20px; margin-top: 20px; border: 1px solid #ddd; min-height: 50px; }
   .flagged { border-left: 5px solid #dc2626; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top: 2px solid transparent; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
@@ -51,12 +54,30 @@ FRONTEND_HTML = """
 <body>
   <h1>Claims Triage Agent</h1>
   <p>Enter a claim description below and submit for automated triage.</p>
+
+  <div class="sample-note">
+    This demo uses a small sample policy database. Valid policy numbers are
+    <code>POL-1001</code> through <code>POL-1005</code>. Try one of the examples below,
+    or click "Try an unknown policy" to see how the agent handles a claim it can't verify.
+  </div>
+
+  <button class="example-btn" onclick="fillExample('valid')">Try a valid claim</button>
+  <button class="example-btn" onclick="fillExample('unknown')">Try an unknown policy</button>
+
   <textarea id="claimText" placeholder="e.g. Claimant Jane Doe filed a claim under policy POL-1001 for a fender bender, claiming 2000 dollars in damages."></textarea>
   <br>
   <button id="submitBtn" onclick="submitClaim()">Submit Claim</button>
   <div id="report"></div>
 
 <script>
+function fillExample(kind) {
+  const examples = {
+    valid: "Claimant Jane Doe filed a claim under policy POL-1001 for a fender bender, claiming 2000 dollars in damages.",
+    unknown: "Claimant John Smith filed a claim under policy POL-9999 for a kitchen fire, claiming 5000 dollars in damages."
+  };
+  document.getElementById('claimText').value = examples[kind];
+}
+
 async function submitClaim() {
   const text = document.getElementById('claimText').value;
   const btn = document.getElementById('submitBtn');
