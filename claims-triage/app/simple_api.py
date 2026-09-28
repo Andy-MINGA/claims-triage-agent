@@ -72,7 +72,7 @@ FRONTEND_HTML = """
 <script>
 function fillExample(kind) {
   const examples = {
-    valid: "Claimant Jane Doe filed a claim under policy POL-1001 for a fender bender, claiming 2000 dollars in damages.",
+    valid: "Claimant John Carter filed a claim under policy POL-1001 for a fender bender, claiming 2000 dollars in damages.",
     unknown: "Claimant John Smith filed a claim under policy POL-9999 for a kitchen fire, claiming 5000 dollars in damages."
   };
   document.getElementById('claimText').value = examples[kind];
